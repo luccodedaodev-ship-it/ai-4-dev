@@ -1,10 +1,10 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { GlassCard } from '@/app/components/GlassCard';
-import { ShoppingCart, Star, Sparkles, X, Check, Copy, Search, Filter, Zap } from 'lucide-react';
+import { ShoppingCart, Star, Sparkles, X, Check, Copy, Search, Filter, Zap, Upload, Loader2, MessageCircle, Send } from 'lucide-react';
 import chatgptImage from '@/assets/chatgpt.png';
 import cursorImage from '@/assets/cursor-ai-logo.jpg';
 import qrImage from '@/assets/qr.jpg';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 const products = [
   {
@@ -77,7 +77,6 @@ const products = [
     gradient: 'from-pink-400 to-rose-500',
     bestSeller: true,
   },
-
 ];
 
 export function Home() {
@@ -89,6 +88,13 @@ export function Home() {
     confirmPhone: '',
     email: ''
   });
+  const [proofFile, setProofFile] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // REPLACE THIS WITH YOUR ACTUAL APP SCRIPT URL
+  const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzkf_IJB4YiOtycVYFaL5t65TukaS4bkTs3eDrWgzsAyLUFZpIjfzR-wG_OZ6Vm59ppuw/exec";
 
   const parsePrice = (price: string) => parseInt(price.replace(/\D/g, ''));
 
@@ -114,11 +120,63 @@ export function Home() {
 
   const handleBuy = (product: typeof products[0]) => {
     setSelectedProduct(product);
+    setProofFile(null); // Reset proof
+    setFormData({ phone: '', confirmPhone: '', email: '' }); // Reset form
   };
 
   const handleClose = () => {
     setSelectedProduct(null);
+    setProofFile(null);
     setFormData({ phone: '', confirmPhone: '', email: '' });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProofFile(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.phone || !formData.email || !proofFile) {
+      alert("Vui lòng điền đầy đủ thông tin và tải lên ảnh chuyển khoản!");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      if (!APP_SCRIPT_URL) {
+        // Simulation for demo purposes if URL not set
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        setShowSuccess(true);
+      } else {
+        await fetch(APP_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors', // Important for Google Apps Script
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            product: selectedProduct?.name,
+            price: selectedProduct?.price,
+            ...formData,
+            proofImage: proofFile
+          })
+        });
+        setShowSuccess(true);
+      }
+      handleClose();
+    } catch (error) {
+      console.error("Error submitting:", error);
+      alert("Có lỗi xảy ra, vui lòng thử lại hoặc liên hệ Admin.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -436,10 +494,55 @@ export function Home() {
                       />
                     </div>
 
+                    <div className="pt-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Minh chứng thanh toán (Ảnh chụp màn hình)</label>
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="border-2 border-dashed border-gray-300 rounded-xl p-4 cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all text-center"
+                      >
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          className="hidden"
+                          accept="image/*"
+                          onChange={handleFileChange}
+                        />
+                        {proofFile ? (
+                          <div className="relative">
+                            <img src={proofFile} alt="Proof Preview" className="h-32 w-auto mx-auto rounded-lg object-contain" />
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setProofFile(null); }}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-2 py-2">
+                            <Upload className="w-8 h-8 text-gray-400" />
+                            <p className="text-sm text-gray-500">Nhấn để tải ảnh lên</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     <div className="pt-4">
-                      <button className="w-full bg-blue-600 text-white py-4 rounded-xl font-semibold shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
-                        <Check className="w-5 h-5" />
-                        Xác Nhận Đã Thanh Toán
+                      <button
+                        onClick={handleSubmit}
+                        disabled={isSubmitting}
+                        className="w-full bg-blue-600 text-white py-4 rounded-xl font-semibold shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            Đang xử lý...
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-5 h-5" />
+                            Xác Nhận Đã Thanh Toán
+                          </>
+                        )}
                       </button>
                       <p className="text-xs text-center text-gray-500 mt-3">
                         Sau khi chuyển khoản, vui lòng bấm xác nhận. Hệ thống sẽ gửi tài khoản qua Zalo/Email trong vòng 15 phút.
@@ -447,6 +550,95 @@ export function Home() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* SUCCESS MODAL */}
+      <AnimatePresence>
+        {showSuccess && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
+              onClick={() => setShowSuccess(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: 20 }}
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md z-[60] px-4"
+            >
+              <div className="bg-white rounded-3xl p-8 text-center shadow-2xl relative overflow-hidden">
+                {/* Confetti Background Effect */}
+                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-green-50 to-white -z-10" />
+
+                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 relative">
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 200, damping: 10, delay: 0.2 }}
+                  >
+                    <Check className="w-10 h-10 text-green-600 stroke-[4]" />
+                  </motion.div>
+                  <motion.div
+                    initial={{ opacity: 0, scale: 1.5 }}
+                    animate={{ opacity: 0, scale: 2.5 }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                    className="absolute inset-0 bg-green-400 rounded-full opacity-20"
+                  />
+                </div>
+
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Thanh Toán Thành Công!</h3>
+                <p className="text-gray-600 mb-8">
+                  Cảm ơn bạn đã tin tưởng. Đơn hàng đang được xử lý và sẽ gửi đến bạn trong giây lát.
+                </p>
+
+                <div className="bg-blue-50 rounded-xl p-4 mb-8 border border-blue-100">
+                  <p className="text-sm font-semibold text-blue-800 mb-3 uppercase tracking-wider">Hỗ Trợ Trực Tuyến 24/7</p>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-3 bg-white p-3 rounded-lg border border-blue-100 shadow-sm">
+                      <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-xs">Z</div>
+                      <div className="text-left">
+                        <p className="text-xs text-gray-500">Zalo Support</p>
+                        <p className="font-bold text-gray-900">0367545048</p>
+                      </div>
+                      <button
+                        onClick={() => navigator.clipboard.writeText('0367545048')}
+                        className="ml-auto p-2 text-gray-400 hover:text-blue-600"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-3 bg-white p-3 rounded-lg border border-blue-100 shadow-sm">
+                      <div className="w-8 h-8 rounded-full bg-sky-500 flex items-center justify-center text-white">
+                        <Send className="w-4 h-4 ml-0.5" />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-xs text-gray-500">Telegram</p>
+                        <p className="font-bold text-gray-900">@defautmmo</p>
+                      </div>
+                      <button
+                        onClick={() => navigator.clipboard.writeText('@defautmmo')}
+                        className="ml-auto p-2 text-gray-400 hover:text-blue-600"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowSuccess(false)}
+                  className="w-full bg-gray-900 text-white py-3.5 rounded-xl font-bold hover:bg-black transition-colors"
+                >
+                  Đóng
+                </button>
               </div>
             </motion.div>
           </>
